@@ -16,12 +16,12 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('stockedge_user');
+    const storedUser = localStorage.getItem('EquiDash_user');
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (e) {
-        localStorage.removeItem('stockedge_user');
+        localStorage.removeItem('EquiDash_user');
       }
     }
     setLoading(false);
@@ -30,12 +30,12 @@ function App() {
   const handleLogin = (userData) => {
     console.log("LOGIN SUCCESS! Switching to Dashboard.");
     setUser(userData);
-    localStorage.setItem('stockedge_user', JSON.stringify(userData));
+    localStorage.setItem('EquiDash_user', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('stockedge_user');
+    localStorage.removeItem('EquiDash_user');
   };
 
   if (loading) {

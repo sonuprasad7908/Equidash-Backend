@@ -115,7 +115,7 @@ const Login = ({ onLogin }) => {
       <div className="flex-1 hidden lg:flex flex-col justify-center px-12 py-12">
         <div className="max-w-md">
           <h1 className="text-6xl font-bold mb-4 text-white">
-            Stock<span className="text-blue-500">Edge</span>
+            Equi<span className="text-blue-500">Dash</span>
             <br />
             <span className="font-light opacity-70">Terminal</span>
           </h1>
@@ -132,7 +132,7 @@ const Login = ({ onLogin }) => {
             {showOtpInput ? 'Verify Account' : isRegister ? 'Create Account' : 'Welcome Back'}
           </h2>
           <p className="text-gray-400 text-sm mb-8">
-            {showOtpInput ? 'Enter the code sent to your Gmail' : isRegister ? 'Join StockEdge Pro' : 'Enter your credentials'}
+            {showOtpInput ? 'Enter the code sent to your Gmail' : isRegister ? 'Join EquiDash Pro' : 'Enter your credentials'}
           </p>
 
           {!showOtpInput && (

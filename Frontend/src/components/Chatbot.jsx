@@ -3,11 +3,37 @@ import axios from 'axios';
 import { API } from '../utils/app';
 import { Send, X, Bot, User } from 'lucide-react';
 
+// --- THE NEW TYPEWRITER MACHINE ---
+const TypewriterText = ({ text, delay = 15 }) => {
+  const [currentText, setCurrentText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    // Reset if the text changes
+    setCurrentText('');
+    setCurrentIndex(0);
+  }, [text]);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setCurrentText(prevText => prevText + text[currentIndex]);
+        setCurrentIndex(prevIndex => prevIndex + 1);
+      }, delay);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [currentIndex, delay, text]);
+
+  return <span>{currentText}</span>;
+};
+// -----------------------------------
+
 const Chatbot = ({ user, onClose }) => {
   const [messages, setMessages] = useState([
     {
       type: 'bot',
-      text: 'Hello! 👋 I am StockEdge AI. How can I help you navigate the market today?'
+      text: 'Hello! 👋 I am EquiDash AI. How can I help you navigate the market today?'
     }
   ]);
   const [input, setInput] = useState('');
@@ -38,22 +64,30 @@ const Chatbot = ({ user, onClose }) => {
     setLoading(true);
 
     try {
+      // Small logic to dynamically guess the ticker if mentioned
+      const guessedTicker = message.toUpperCase().includes('TATAMOTORS') ? 'TATAMOTORS' : 'SBIN';
+
       const response = await axios.post(`${API}/chat`, {
-        user_id: user.id,
-        message: message
+        user_id: user?.id || 'guest',
+        message: message,
+        ticker: guessedTicker // Sends the ticker to Python!
       });
+
+      // THE FIX: Looking for .reply instead of .response
+      const botReply = response.data.reply || response.data.response || "Analysis complete.";
 
       // Add bot response
       setMessages((prev) => [
         ...prev,
-        { type: 'bot', text: response.data.response }
+        { type: 'bot', text: botReply }
       ]);
     } catch (error) {
+      console.error("Chat API Error:", error);
       setMessages((prev) => [
         ...prev,
         {
           type: 'bot',
-          text: 'Sorry, I encountered an error. Please try again.'
+          text: 'Sorry, my AI servers are currently taking a breather. Please try again!'
         }
       ]);
     } finally {
@@ -69,11 +103,11 @@ const Chatbot = ({ user, onClose }) => {
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
             <Bot size={24} />
           </div>
           <div>
-            <h3 className="font-bold">StockEdge AI</h3>
+            <h3 className="font-bold text-white">EquiDash AI</h3>
             <p className="text-xs text-green-500">● Online</p>
           </div>
         </div>
@@ -96,7 +130,14 @@ const Chatbot = ({ user, onClose }) => {
                   : 'bg-gray-700 text-gray-100 rounded-bl-none'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+              {/* 🚀 THE TYPEWRITER UPGRADE IS HERE */}
+              <p className="text-sm whitespace-pre-wrap">
+                {msg.type === 'bot' ? (
+                  <TypewriterText text={msg.text} />
+                ) : (
+                  msg.text
+                )}
+              </p>
             </div>
           </div>
         ))}
@@ -139,7 +180,7 @@ const Chatbot = ({ user, onClose }) => {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Ask anything..."
-            className="flex-1 bg-[#0f172a] border border-gray-700 rounded-lg px-4 py-2 text-sm"
+            className="flex-1 bg-[#0f172a] border border-gray-700 text-white rounded-lg px-4 py-2 text-sm"
             disabled={loading}
             data-testid="chat-input"
           />
