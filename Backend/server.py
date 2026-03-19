@@ -591,6 +591,17 @@ async def get_portfolio(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+        
+@api_router.get("/transactions/{user_id}")
+async def get_transactions(user_id: str):
+    try:
+        trades = await db.trades.find(
+            {"user_id": user_id}, {"_id": 0}
+        ).sort("timestamp", -1).to_list(500)
+        return {"trades": trades}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ==================== WATCHLIST ====================
 @api_router.get("/watchlist/{user_id}")
 async def get_watchlist(user_id: str):
