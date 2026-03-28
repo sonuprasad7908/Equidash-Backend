@@ -37,6 +37,57 @@ import bcrypt
 import time
 import random
 
+import math
+
+def safe_float(val, default=0.0):
+    """Convert ANY numeric value to a JSON-safe Python float."""
+    try:
+        v = float(val)          # handles numpy.float64, numpy.float32, etc.
+        if math.isnan(v) or math.isinf(v):
+            return default
+        return round(v, 6)      # also strips floating-point noise
+    except (TypeError, ValueError):
+        return default
+
+def clean_json(obj):
+    """
+    Recursively walk dicts/lists and convert every numeric value to a
+    JSON-safe Python scalar.  Handles numpy types that bypass isinstance(x, float).
+    """
+    if isinstance(obj, dict):
+        return {k: clean_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [clean_json(v) for v in obj]
+    # numpy scalars all inherit from numpy.generic
+    try:
+        import numpy as np
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.complexfloating)):
+            v = float(obj)
+            return 0.0 if (math.isnan(v) or math.isinf(v)) else v
+        if isinstance(obj, np.ndarray):
+            return clean_json(obj.tolist())
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+    except ImportError:
+        pass
+    # plain Python float
+    if isinstance(obj, float):
+        return 0.0 if (math.isnan(obj) or math.isinf(obj)) else obj
+    return obj
+
+def safe_response(data):
+    """Return a JSONResponse with all NaN/Inf values sanitised."""
+    import json as _json
+    cleaned = clean_json(data)
+    return JSONResponse(content=cleaned)
+
+# Keep old name for backwards compat
+clean_dict = clean_json
+
+
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 mongo_url = os.environ['MONGO_URL']
@@ -49,6 +100,53 @@ async def lifespan(app: FastAPI):
     yield
     print("🛑 EquiDash Backend Engine Offline")
     mongo_client.close()
+
+# ── Custom JSON encoder that handles NaN/Inf/numpy types ──────────────────
+import json as _json_module
+
+class _NanSafeEncoder(_json_module.JSONEncoder):
+    """
+    Replaces NaN, Infinity, -Infinity with 0 so FastAPI never crashes
+    on yfinance numpy floats. Handles numpy scalar types too.
+    """
+    def default(self, obj):
+        try:
+            import numpy as _np
+            if isinstance(obj, _np.integer):
+                return int(obj)
+            if isinstance(obj, _np.floating):
+                v = float(obj)
+                return 0.0 if (math.isnan(v) or math.isinf(v)) else v
+            if isinstance(obj, _np.ndarray):
+                return obj.tolist()
+            if isinstance(obj, _np.bool_):
+                return bool(obj)
+        except ImportError:
+            pass
+        return super().default(obj)
+
+    def iterencode(self, o, _one_shot=False):
+        # Walk and sanitise before encoding
+        return super().iterencode(clean_json(o), _one_shot)
+
+# Monkey-patch FastAPI's default JSON response to use our encoder
+from starlette.responses import JSONResponse as _BaseJSONResponse
+class _SafeJSONResponse(_BaseJSONResponse):
+    def render(self, content) -> bytes:
+        return _json_module.dumps(
+            clean_json(content),
+            ensure_ascii=False,
+            allow_nan=False,        # will raise if we missed anything
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+# Override globally
+import fastapi.responses as _fr
+_fr.JSONResponse = _SafeJSONResponse
+import starlette.responses as _sr
+_sr.JSONResponse = _SafeJSONResponse
+JSONResponse = _SafeJSONResponse   # local alias too
+# ──────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="EquiDash Pro API", version="3.0", lifespan=lifespan)
 api_router = APIRouter(prefix="/api")
@@ -206,12 +304,18 @@ async def login_user(login_data: LoginRequest):
     try:
         user_doc = await db.users.find_one({"email": login_data.email})
         if not user_doc:
-            raise HTTPException(status_code=404, detail="Account not found. Please create an account.")
-        stored_hash = user_doc.get("password_hash")
-        if stored_hash:
-            is_valid = bcrypt.checkpw(login_data.password.encode('utf-8'), stored_hash.encode('utf-8'))
-            if not is_valid:
-                raise HTTPException(status_code=401, detail="Incorrect password.")
+            raise HTTPException(status_code=404, detail="Account not found. Please register first.")
+        # Check if account was created via OAuth — no password set
+        provider = user_doc.get("provider", "email")
+        stored_hash = user_doc.get("password_hash", "")
+        if provider in ("google", "facebook") or not stored_hash:
+            raise HTTPException(
+                status_code=400,
+                detail=f"This account uses {provider.capitalize()} sign-in. Please click 'Continue with {provider.capitalize()}' instead."
+            )
+        is_valid = bcrypt.checkpw(login_data.password.encode('utf-8'), stored_hash.encode('utf-8'))
+        if not is_valid:
+            raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
         user_doc.pop("_id", None)
         return {"status": "success", "message": "Login successful", "user": user_doc}
     except HTTPException:
@@ -283,15 +387,15 @@ def calculate_technical_indicators(hist: pd.DataFrame) -> Dict[str, Any]:
         bb_upper = sma_20 + (std_20 * 2)
         bb_lower = sma_20 - (std_20 * 2)
         return {
-            "rsi": float(rsi.iloc[-1]) if not rsi.empty else 50,
-            "macd": float(macd.iloc[-1]) if not macd.empty else 0,
-            "macd_signal": float(signal.iloc[-1]) if not signal.empty else 0,
-            "bb_upper": float(bb_upper.iloc[-1]) if not bb_upper.empty else 0,
-            "bb_middle": float(sma_20.iloc[-1]) if not sma_20.empty else 0,
-            "bb_lower": float(bb_lower.iloc[-1]) if not bb_lower.empty else 0,
-            "sma_20": float(sma_20.iloc[-1]),
-            "sma_50": float(close_prices.rolling(window=50).mean().iloc[-1]),
-            "sma_200": float(close_prices.rolling(window=200).mean().iloc[-1]) if len(close_prices) >= 200 else 0
+            "rsi": safe_float(rsi.iloc[-1]) if not rsi.empty else 50,
+            "macd": safe_float(macd.iloc[-1]) if not macd.empty else 0,
+            "macd_signal": safe_float(signal.iloc[-1]) if not signal.empty else 0,
+            "bb_upper": safe_float(bb_upper.iloc[-1]) if not bb_upper.empty else 0,
+            "bb_middle": safe_float(sma_20.iloc[-1]) if not sma_20.empty else 0,
+            "bb_lower": safe_float(bb_lower.iloc[-1]) if not bb_lower.empty else 0,
+            "sma_20": safe_float(sma_20.iloc[-1]),
+            "sma_50": safe_float(close_prices.rolling(window=50).mean().iloc[-1]),
+            "sma_200": safe_float(close_prices.rolling(window=200).mean().iloc[-1]) if len(close_prices) >= 200 else 0
         }
     except Exception:
         return {"rsi": 50, "macd": 0, "status": "calculation_error"}
@@ -445,9 +549,11 @@ async def get_market_overview():
             try:
                 hist = yf.Ticker(symbol).history(period='2d')
                 if len(hist) > 1:
-                    current = float(hist['Close'].iloc[-1])
-                    prev = float(hist['Close'].iloc[-2])
-                    change = ((current - prev) / prev) * 100
+                    current = safe_float(hist['Close'].iloc[-1])
+                    prev = safe_float(hist['Close'].iloc[-2])
+                    if current == 0 or prev == 0:
+                        continue
+                    change = safe_float(((current - prev) / prev) * 100)
                     indices_data.append({"name": name, "price": current, "change": change})
             except:
                 pass
@@ -460,17 +566,24 @@ async def get_market_overview():
             try:
                 hist = yf.Ticker(t).history(period='2d')
                 if len(hist) > 1:
-                    current = float(hist['Close'].iloc[-1])
-                    prev = float(hist['Close'].iloc[-2])
-                    change = ((current - prev) / prev) * 100
+                    current = safe_float(hist['Close'].iloc[-1])
+                    prev = safe_float(hist['Close'].iloc[-2])
+                    if current == 0 or prev == 0:
+                        continue
+                    change = safe_float(((current - prev) / prev) * 100)
                     display = t.replace('.NS', '').replace('.BO', '')
                     if display == 'TMPV': display = 'TATAMOTORS(PV)'
                     if display == 'TMCV': display = 'TATAMOTORS(CV)'
                     trending_stocks.append({"ticker": display, "price": current, "change": change})
             except:
                 pass
+        # Filter out any stocks with NaN/invalid data
+        trending_stocks = [s for s in trending_stocks 
+                          if not (math.isnan(s['price']) or math.isnan(s['change']) 
+                                  or math.isinf(s['price']) or math.isinf(s['change']))]
         trending_stocks.sort(key=lambda x: x['change'], reverse=True)
-        return {"indices": indices_data, "gainers": trending_stocks[:5], "losers": trending_stocks[-5:]}
+        result = {"indices": indices_data, "gainers": trending_stocks[:5], "losers": trending_stocks[-5:]}
+        return safe_response(result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -487,8 +600,10 @@ async def get_global_indices():
             try:
                 hist = yf.Ticker(symbol).history(period='2d')
                 if len(hist) > 1:
-                    current = float(hist['Close'].iloc[-1])
-                    prev = float(hist['Close'].iloc[-2])
+                    current = safe_float(hist['Close'].iloc[-1])
+                    prev = safe_float(hist['Close'].iloc[-2])
+                    if current == 0 or prev == 0:
+                        continue
                     change = ((current - prev) / prev) * 100
                     currency = "£" if symbol == '^FTSE' else "¥" if symbol == '^N225' else "HK$" if symbol == '^HSI' else "$"
                     indices_data.append({"name": name, "price": current, "change": change, "currency": currency})
@@ -794,6 +909,161 @@ async def check_alerts(user_id: str):
                 print(f"Alert check error for {alert.get('ticker')}: {e}")
                 continue
         return {"triggered": triggered, "checked": len(alerts)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ══════════════════════════════════════════════════════
+#  REAL-TIME: Server-Sent Events for live stock prices
+# ══════════════════════════════════════════════════════
+from fastapi.responses import StreamingResponse
+import asyncio
+
+@api_router.get("/stream/prices")
+async def stream_prices(tickers: str, request: Request):
+    """
+    SSE endpoint — streams live price updates every 8 seconds.
+    Usage: GET /api/stream/prices?tickers=RELIANCE,TCS,HDFCBANK
+    """
+    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()][:10]
+
+    async def generate():
+        yield "retry: 5000\n\n"   # tell browser to retry after 5s on disconnect
+        while True:
+            # Check client disconnect
+            if await request.is_disconnected():
+                break
+            try:
+                prices = {}
+                for t in ticker_list:
+                    try:
+                        hist = yf.Ticker(f"{t}.NS").history(period="2d")
+                        if len(hist) >= 2:
+                            cur  = safe_float(hist["Close"].iloc[-1])
+                            prev = safe_float(hist["Close"].iloc[-2])
+                            if cur > 0 and prev > 0:
+                                prices[t] = {
+                                    "ticker": t,
+                                    "price":  round(cur, 2),
+                                    "change": round(((cur - prev) / prev) * 100, 2),
+                                    "prev":   round(prev, 2),
+                                }
+                    except Exception:
+                        pass
+                if prices:
+                    payload = clean_json(prices)
+                    import json as _j
+                    yield f"data: {_j.dumps(payload)}\n\n"
+            except Exception:
+                pass
+            # Wait 8 seconds between updates
+            await asyncio.sleep(8)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection":    "keep-alive",
+            "X-Accel-Buffering": "no",    # disable nginx buffering
+        },
+    )
+
+@api_router.get("/stream/market")
+async def stream_market(request: Request):
+    """SSE for market overview — refreshes every 30 seconds."""
+    async def generate():
+        yield "retry: 10000\n\n"
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                # Re-use market overview logic
+                indices_data = []
+                indices = {'^NSEI': 'NIFTY 50', '^BSESN': 'SENSEX', '^NSEBANK': 'BANK NIFTY'}
+                for symbol, name in indices.items():
+                    try:
+                        hist = yf.Ticker(symbol).history(period='2d')
+                        if len(hist) > 1:
+                            cur  = safe_float(hist['Close'].iloc[-1])
+                            prev = safe_float(hist['Close'].iloc[-2])
+                            if cur > 0 and prev > 0:
+                                indices_data.append({
+                                    "name": name, "price": cur,
+                                    "change": safe_float(((cur-prev)/prev)*100)
+                                })
+                    except: pass
+
+                trending = ['RELIANCE.NS','TCS.NS','HDFCBANK.NS','ICICIBANK.NS',
+                            'INFY.NS','SBIN.NS','BHARTIARTL.NS','ITC.NS']
+                stocks = []
+                for t in trending:
+                    try:
+                        hist = yf.Ticker(t).history(period='2d')
+                        if len(hist) > 1:
+                            cur  = safe_float(hist['Close'].iloc[-1])
+                            prev = safe_float(hist['Close'].iloc[-2])
+                            if cur > 0 and prev > 0:
+                                stocks.append({
+                                    "ticker": t.replace('.NS',''),
+                                    "price":  round(cur,2),
+                                    "change": round(((cur-prev)/prev)*100,2),
+                                })
+                    except: pass
+
+                stocks.sort(key=lambda x: x['change'], reverse=True)
+                payload = clean_json({
+                    "indices": indices_data,
+                    "gainers": stocks[:5],
+                    "losers":  stocks[-5:]
+                })
+                import json as _j
+                yield f"data: {_j.dumps(payload)}\n\n"
+            except Exception:
+                pass
+            await asyncio.sleep(30)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection":    "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+@api_router.get("/alerts/check-push/{user_id}")
+async def check_alerts_push(user_id: str):
+    """
+    Lightweight alert check — returns only triggered alerts.
+    Called by the frontend push notification hook every 60 seconds.
+    """
+    try:
+        alerts = await db.alerts.find(
+            {"user_id": user_id, "triggered": False}, {"_id": 0}
+        ).to_list(50)
+        triggered = []
+        for alert in alerts:
+            try:
+                hist = yf.Ticker(f"{alert['ticker']}.NS").history(period="1d")
+                if hist.empty: continue
+                price = safe_float(hist['Close'].iloc[-1])
+                if price <= 0: continue
+                fired = (alert['condition'] == 'above' and price >= alert['target_price']) or                         (alert['condition'] == 'below' and price <= alert['target_price'])
+                if fired:
+                    await db.alerts.update_one(
+                        {"id": alert["id"]},
+                        {"$set": {"triggered": True, "triggered_price": price}}
+                    )
+                    triggered.append({
+                        "ticker":          alert["ticker"],
+                        "condition":       alert["condition"],
+                        "target_price":    alert["target_price"],
+                        "triggered_price": price,
+                        "note":            alert.get("note", ""),
+                    })
+            except: pass
+        return clean_json({"triggered": triggered})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
