@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowUpCircle, ArrowDownCircle, RefreshCw, Search, Filter, TrendingUp, TrendingDown, DollarSign, BarChart2 } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, RefreshCw, Search, TrendingUp, TrendingDown, DollarSign, BarChart2 } from 'lucide-react';
 import { API } from '../utils/app';
 
 const Transactions = ({ user }) => {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all'); // all, BUY, SELL
+  const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
   const fmt = (n) => (n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -14,19 +14,23 @@ const Transactions = ({ user }) => {
   const loadTrades = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/trades/${user.id}`);
+      // ✅ BUG FIX: correct API endpoint
+      const res = await fetch(`${API}/transactions/${user.id}`);
       const data = await res.json();
       setTrades(data.trades || []);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error(e);
+      setTrades([]);
+    } finally {
+      setLoading(false);
+    }
   }, [user.id]);
 
   useEffect(() => { loadTrades(); }, [loadTrades]);
 
-  // Filter + search + sort
   const filtered = trades
     .filter(t => filter === 'all' || t.action === filter)
-    .filter(t => t.ticker.toLowerCase().includes(search.toLowerCase()))
+    .filter(t => t.ticker?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'newest') return new Date(b.timestamp) - new Date(a.timestamp);
       if (sortBy === 'oldest') return new Date(a.timestamp) - new Date(b.timestamp);
@@ -35,11 +39,16 @@ const Transactions = ({ user }) => {
       return 0;
     });
 
-  // Summary stats
   const totalBuys = trades.filter(t => t.action === 'BUY');
   const totalSells = trades.filter(t => t.action === 'SELL');
   const totalInvested = totalBuys.reduce((s, t) => s + t.total_amount, 0);
-  const totalReturned = totalSells.reduce((s, t) => s + t.total_amount, 0);
+
+  const sortOptions = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+    { value: 'highest', label: 'Highest Value' },
+    { value: 'lowest', label: 'Lowest Value' },
+  ];
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
@@ -91,28 +100,39 @@ const Transactions = ({ user }) => {
             className="w-full pl-10 pr-4 py-2.5 bg-slate-900/60 border border-slate-700/50 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-all" />
         </div>
 
-        {/* Action Filter */}
+        {/* Action Filter Buttons */}
         <div className="flex gap-2">
-          {['all', 'BUY', 'SELL'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
+          {[
+            { key: 'all', label: 'All' },
+            { key: 'BUY', label: 'BUY' },
+            { key: 'SELL', label: 'SELL' },
+          ].map(({ key, label }) => (
+            <button key={key} onClick={() => setFilter(key)}
               className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                filter === f
-                  ? f === 'BUY' ? 'bg-emerald-500 text-white' : f === 'SELL' ? 'bg-rose-500 text-white' : 'bg-cyan-500 text-slate-900'
+                filter === key
+                  ? key === 'BUY' ? 'bg-emerald-500 text-white'
+                  : key === 'SELL' ? 'bg-rose-500 text-white'
+                  : 'bg-cyan-500 text-slate-900'
                   : 'glass-panel text-slate-400 hover:text-white'
               }`}>
-              {f === 'all' ? 'All' : f}
+              {label}
             </button>
           ))}
         </div>
 
-        {/* Sort */}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          className="px-4 py-2.5 bg-slate-900/60 border border-slate-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-cyan-500 transition-all">
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="highest">Highest Value</option>
-          <option value="lowest">Lowest Value</option>
-        </select>
+        {/* ✅ BUG FIX: Sort dropdown replaced with buttons to avoid browser styling issue */}
+        <div className="flex gap-2">
+          {sortOptions.map(({ value, label }) => (
+            <button key={value} onClick={() => setSortBy(value)}
+              className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                sortBy === value
+                  ? 'bg-slate-700 text-white border border-slate-600'
+                  : 'glass-panel text-slate-400 hover:text-white'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Transactions Table */}
@@ -179,7 +199,7 @@ const Transactions = ({ user }) => {
           </div>
         )}
 
-        {/* Footer summary */}
+        {/* Footer */}
         {filtered.length > 0 && (
           <div className="px-6 py-4 border-t border-slate-700/50 flex justify-between items-center bg-slate-800/20">
             <p className="text-xs text-slate-500">{filtered.length} transactions shown</p>

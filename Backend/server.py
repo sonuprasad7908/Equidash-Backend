@@ -258,17 +258,18 @@ async def send_otp(user_data: UserCreate):
         "otp": otp, "name": user_data.name,
         "password_hash": password_hash, "expires": time.time() + 600
     }
+    print(f"\n{'='*40}")
+    print(f"🔒 OTP for {user_data.email} : {otp}")
+    print(f"{'='*40}\n")
     try:
         subject = "Your EquiDash Verification Code"
         body = f"Hello {user_data.name or 'Trader'},\n\nYour verification code is: {otp}\n\nThis code expires in 10 minutes."
         send_email(user_data.email, subject, body)
-        print(f"\n🔒 OTP for {user_data.email} is {otp}\n")
-        return {"status": "pending_verification", "message": "OTP sent successfully"}
+        return {"status": "pending_verification", "message": "OTP sent to your email"}
     except Exception as e:
-        if user_data.email in temp_otp_store:
-            del temp_otp_store[user_data.email]
-        logging.error(f"Mail Error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to send email. Check your SMTP settings.")
+        logging.error(f"Mail Error (OTP still valid — check terminal): {e}")
+        # Don't delete OTP — it's stored and valid; user can read it from terminal
+        return {"status": "pending_verification", "message": "OTP sent (check backend terminal if email not received)"}
 
 @api_router.post("/verify-otp")
 async def verify_otp(data: VerifyOTP):
@@ -1105,14 +1106,15 @@ async def reset_balance(req: ResetBalanceRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== APP SETUP ====================
-app.include_router(api_router)
+# CORS middleware MUST be added before including routers
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000"), "http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
+app.include_router(api_router)
 
 if __name__ == "__main__":
     import uvicorn

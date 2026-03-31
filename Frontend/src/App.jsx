@@ -4,91 +4,95 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import './utils/app.css';
 import './utils/index.css';
 
-import LoadingScreen from './components/LoadingScreen';
-import Login from './pages/login';
-import Dashboard from './pages/Dashboard';
-import Portfolio from './pages/portfolio';
-import News from './pages/News';
-import Pricing from './pages/Pricing';
+import LoadingScreen  from './components/LoadingScreen';
+import Login          from './pages/login';
+import Dashboard      from './pages/Dashboard';
+import Pricing        from './pages/Pricing';
 import PaymentSuccess from './pages/PaymentSuccess';
-import Watchlist from './pages/Watchlist';
-import Screener from './pages/Screener';
-import IPO from './pages/IPO';
-import Calculator from './pages/Calculator';
-import Alerts from './pages/Alerts';
-import Transactions from './pages/Transactions';
-import Compare from './pages/Compare';
-import Profile from './pages/Profile';
-import HeatMap from './pages/HeatMap';
-import Trading from './pages/Trading';
+
+/* Full-screen tab pages (open in new browser tab, no sidebar) */
+import Trading  from './pages/Trading';
 import Research from './pages/Research';
-import Tools from './pages/Tools';
+import Tools    from './pages/Tools';
+import Profile  from './pages/Profile';
+
 import Layout, { ThemeProvider } from './components/layout';
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
+  const [user,       setUser]       = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  // Only show splash on the very first visit per browser session
+  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('eq_splash_done'));
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('EquiDash_user');
-    if (storedUser) {
-      try { setUser(JSON.parse(storedUser)); }
-      catch (e) { localStorage.removeItem('EquiDash_user'); }
+    const stored = localStorage.getItem('EquiDash_user');
+    if (stored) {
+      try { setUser(JSON.parse(stored)); }
+      catch { localStorage.removeItem('EquiDash_user'); }
     }
     setLoading(false);
   }, []);
 
-  const handleLogin = (u) => { setUser(u); localStorage.setItem('EquiDash_user', JSON.stringify(u)); };
-  const handleLogout = () => { setUser(null); localStorage.removeItem('EquiDash_user'); };
-  const handleBalanceUpdate = (b) => {
-    const u = { ...user, balance: b };
-    setUser(u); localStorage.setItem('EquiDash_user', JSON.stringify(u));
-  };
-  const handleUserUpdate = (u) => { setUser(u); localStorage.setItem('EquiDash_user', JSON.stringify(u)); };
+  const handleLogin         = u => { setUser(u);  localStorage.setItem('EquiDash_user', JSON.stringify(u)); };
+  const handleLogout        = ()  => { setUser(null); localStorage.removeItem('EquiDash_user'); };
+  const handleBalanceUpdate = b   => { const u = { ...user, balance: b }; setUser(u); localStorage.setItem('EquiDash_user', JSON.stringify(u)); };
+  const handleUserUpdate    = u   => { setUser(u); localStorage.setItem('EquiDash_user', JSON.stringify(u)); };
 
-  // Show splash screen on first load
-  if (showSplash) {
-    return <LoadingScreen onComplete={() => setShowSplash(false)} />;
-  }
+  /* ── Splash / Loading ── */
+  if (showSplash) return <LoadingScreen onComplete={() => {
+    sessionStorage.setItem('eq_splash_done', '1');
+    setShowSplash(false);
+  }} />;
 
   if (loading) return (
-    <div className="h-screen bg-[#0f172a] flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-slate-700 border-t-cyan-500 rounded-full animate-spin"></div>
+    <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#030712' }}>
+      <div style={{ width:32, height:32, borderRadius:'50%', border:'3px solid rgba(34,211,238,0.15)', borderTopColor:'#22d3ee', animation:'spin 0.8s linear infinite' }}/>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
-  const ProtectedRoute = ({ children }) =>
-    user ? <Layout user={user} onLogout={handleLogout}>{children}</Layout> : <Navigate to="/login" replace />;
+  /* ── Route wrappers ── */
+  /* Pages with sidebar */
+  const Protected = ({ children }) =>
+    user
+      ? <Layout user={user} onLogout={handleLogout}>{children}</Layout>
+      : <Navigate to="/login" replace />;
+
+  /* Full-screen pages (no sidebar) opened in new tab */
+  const ProtectedTab = ({ children }) =>
+    user ? children : <Navigate to="/login" replace />;
 
   return (
-    <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID || "831186646421-99d9bg9i71g88c4ioplqq53usngcegg6.apps.googleusercontent.com"}>
+    <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID || '831186646421-99d9bg9i71g88c4ioplqq53usngcegg6.apps.googleusercontent.com'}>
       <ThemeProvider>
-        <div className="dark">
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} />
-              <Route path="/" element={<ProtectedRoute><Dashboard user={user} /></ProtectedRoute>} />
-              <Route path="/portfolio" element={<ProtectedRoute><Portfolio user={user} /></ProtectedRoute>} />
-              <Route path="/transactions" element={<ProtectedRoute><Transactions user={user} /></ProtectedRoute>} />
-              <Route path="/watchlist" element={<ProtectedRoute><Watchlist user={user} /></ProtectedRoute>} />
-              <Route path="/alerts" element={<ProtectedRoute><Alerts user={user} /></ProtectedRoute>} />
-              <Route path="/screener" element={<ProtectedRoute><Screener /></ProtectedRoute>} />
-              <Route path="/compare" element={<ProtectedRoute><Compare /></ProtectedRoute>} />
-              <Route path="/heatmap" element={<ProtectedRoute><HeatMap /></ProtectedRoute>} />
-              <Route path="/ipo" element={<ProtectedRoute><IPO /></ProtectedRoute>} />
-              <Route path="/calculator" element={<ProtectedRoute><Calculator /></ProtectedRoute>} />
-              <Route path="/news" element={<ProtectedRoute><News user={user} /></ProtectedRoute>} />
-              <Route path="/pricing" element={<ProtectedRoute><Pricing user={user} onBalanceUpdate={handleBalanceUpdate} /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><Profile user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></ProtectedRoute>} />
-              <Route path="/payment-success" element={<PaymentSuccess onBalanceUpdate={handleBalanceUpdate} />} />
-              <Route path="/trading" element={<ProtectedRoute><Trading user={user} /></ProtectedRoute>} />
-              <Route path="/research" element={<ProtectedRoute><Research /></ProtectedRoute>} />
-              <Route path="/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
-              <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
-            </Routes>
-          </BrowserRouter>
-        </div>
+        <BrowserRouter>
+          <Routes>
+
+            {/* Public */}
+            <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />} />
+
+            {/* Main dashboard */}
+            <Route path="/"             element={<Protected><Dashboard   user={user} /></Protected>} />
+            <Route path="/pricing"      element={<Protected><Pricing     user={user} onBalanceUpdate={handleBalanceUpdate} /></Protected>} />
+            <Route path="/payment-success" element={<PaymentSuccess onBalanceUpdate={handleBalanceUpdate} />} />
+
+            {/* Old routes → redirect to Trading (which has them as tabs) */}
+            <Route path="/portfolio"    element={<Navigate to="/trading" replace />} />
+            <Route path="/transactions" element={<Navigate to="/trading" replace />} />
+            <Route path="/watchlist"    element={<Navigate to="/trading" replace />} />
+            <Route path="/alerts"       element={<Navigate to="/trading" replace />} />
+
+            {/* Full-screen tab pages (no sidebar) */}
+            <Route path="/trading"  element={<ProtectedTab><Trading user={user} /></ProtectedTab>} />
+            <Route path="/research" element={<ProtectedTab><Research /></ProtectedTab>} />
+            <Route path="/tools"    element={<ProtectedTab><Tools /></ProtectedTab>} />
+            <Route path="/profile"  element={<ProtectedTab><Profile user={user} onUserUpdate={handleUserUpdate} onLogout={handleLogout} /></ProtectedTab>} />
+
+            {/* Catch-all */}
+            <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
+
+          </Routes>
+        </BrowserRouter>
       </ThemeProvider>
     </GoogleOAuthProvider>
   );
