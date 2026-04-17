@@ -1,0 +1,218 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
+
+/* ==========================================
+   BASE
+   ========================================== */
+body {
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ==========================================
+   DARK MODE (DEFAULT)
+   ========================================== */
+:root,
+html.dark-mode {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-card: rgba(30, 41, 59, 0.7);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border-color: rgba(255, 255, 255, 0.05);
+  --sidebar-bg: rgba(15, 23, 42, 0.4);
+  --input-bg: rgba(15, 23, 42, 0.6);
+  --hover-bg: rgba(30, 41, 59, 0.6);
+}
+
+html.dark-mode body {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================
+   LIGHT MODE
+   ========================================== */
+html.light-mode {
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --sidebar-bg: rgba(255, 255, 255, 0.9);
+  --input-bg: rgba(241, 245, 249, 0.9);
+  --hover-bg: rgba(241, 245, 249, 0.8);
+}
+
+html.light-mode body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+html.light-mode .glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* ── Light mode text overrides ── */
+html.light-mode .text-white { color: #0f172a !important; }
+html.light-mode .text-slate-200 { color: #1e293b !important; }
+html.light-mode .text-slate-300 { color: #334155 !important; }
+html.light-mode .text-slate-400 { color: #64748b !important; }
+html.light-mode .text-slate-500 { color: #94a3b8 !important; }
+
+/* ── Light mode background overrides ── */
+html.light-mode .bg-\[radial-gradient\(ellipse_at_top_right\,_var\(--tw-gradient-stops\)\)\] {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f1f5f9 100%) !important;
+}
+html.light-mode .bg-slate-900\/40,
+html.light-mode .bg-slate-900\/50,
+html.light-mode .bg-slate-900\/60,
+html.light-mode .bg-slate-900\/80,
+html.light-mode .bg-slate-900\/95 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+}
+html.light-mode .bg-slate-800\/40,
+html.light-mode .bg-slate-800\/50,
+html.light-mode .bg-slate-800\/60 {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+html.light-mode .bg-\[#0b1221\] { background-color: #f8fafc !important; }
+html.light-mode .bg-\[#0f172a\] { background-color: #f1f5f9 !important; }
+html.light-mode .bg-\[#1e293b\] { background-color: #ffffff !important; }
+
+/* ── Light mode border overrides ── */
+html.light-mode .border-slate-700,
+html.light-mode .border-slate-700\/50,
+html.light-mode .border-slate-700\/30,
+html.light-mode .border-slate-800\/50 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+html.light-mode .border-gray-700,
+html.light-mode .border-gray-800 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ── Light mode input overrides ── */
+html.light-mode input,
+html.light-mode select,
+html.light-mode textarea {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #0f172a !important;
+}
+html.light-mode input::placeholder { color: #94a3b8 !important; }
+
+/* ── Light mode chat bubble ── */
+html.light-mode .bg-gray-700 {
+  background-color: #e2e8f0 !important;
+}
+html.light-mode .bg-gray-700 .text-gray-100 { color: #1e293b !important; }
+
+/* ── Light mode scrollbar ── */
+html.light-mode .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; }
+html.light-mode .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Light mode skeleton ── */
+html.light-mode .animate-shimmer {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f8fafc 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+html.light-mode .bg-slate-700 { background-color: #e2e8f0 !important; }
+
+/* ==========================================
+   SCROLLBARS
+   ========================================== */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ==========================================
+   ANIMATIONS
+   ========================================== */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ==========================================
+   TAILWIND VARIABLES
+   ========================================== */
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 188 94% 58%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 188 94% 58%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+
+@layer base {
+  [data-debug-wrapper="true"] { display: contents !important; }
+  [data-debug-wrapper="true"] > * {
+    margin-left: inherit; margin-right: inherit;
+    margin-top: inherit; margin-bottom: inherit;
+    padding-left: inherit; padding-right: inherit;
+    padding-top: inherit; padding-bottom: inherit;
+    gap: inherit; border-width: inherit;
+    border-style: inherit; border-color: inherit;
+  }
+}

@@ -1,5 +1,10 @@
 {
   "dependencies": {
+<<<<<<< HEAD
     "lightweight-charts": "^5.1.0"
+=======
+    "framer-motion": "^12.38.0",
+    "motion": "^12.38.0"
+>>>>>>> 78c07177c8f26998f2f4f6641ce4f6d144792fb2
   }
 }
