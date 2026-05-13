@@ -1110,7 +1110,13 @@ async def reset_balance(req: ResetBalanceRequest):
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+    allow_origins=[
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://equidash-frontend.s3-website.us-east-2.amazonaws.com",
+    "https://3.148.128.150.nip.io",
+],
     allow_methods=["*"],
     allow_headers=["*"],
 )
