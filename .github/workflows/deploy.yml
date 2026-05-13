@@ -1,0 +1,39 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            echo ">>> Pulling latest code..."
+            cd /opt/equidash
+            git pull origin main
+
+            echo ">>> Installing dependencies..."
+            source venv/bin/activate
+            pip install -r requirement.txt --quiet
+
+            echo ">>> Restarting service..."
+            sudo systemctl restart equidash
+
+            echo ">>> Waiting for startup..."
+            sleep 4
+
+            echo ">>> Health check..."
+            curl -f http://localhost:8000/docs > /dev/null && echo "DEPLOY SUCCESS" || echo "DEPLOY FAILED"
